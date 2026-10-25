@@ -84,10 +84,21 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "max_depth"):
             validate_config(config)
 
-    def test_depth_rejects_zero(self) -> None:
-        """Отклонить глубину меньше минимальной."""
+    def test_depth_accepts_zero(self) -> None:
+        """Разрешить глубину ноль, когда анализируется только корень."""
         config = dict(VALID_CONFIG, max_depth=0)
+        self.assertEqual(validate_config(config)["max_depth"], 0)
+
+    def test_depth_rejects_negative(self) -> None:
+        """Отклонить отрицательную глубину."""
+        config = dict(VALID_CONFIG, max_depth=-1)
         with self.assertRaisesRegex(ValueError, "не меньше"):
+            validate_config(config)
+
+    def test_filter_rejects_non_string(self) -> None:
+        """Отклонить неверный тип фильтра."""
+        config = dict(VALID_CONFIG, **{"filter": False})
+        with self.assertRaisesRegex(ValueError, "filter"):
             validate_config(config)
 
     def test_empty_filter_is_allowed(self) -> None:

@@ -27,7 +27,7 @@ STRING_KEYS = (
     "version",
     "output_file",
 )
-MIN_DEPTH = 1
+MIN_DEPTH = 0
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -89,7 +89,7 @@ def validate_booleans(config: dict[str, Any]) -> None:
 
 
 def validate_depth(config: dict[str, Any]) -> None:
-    """Проверить целое положительное значение глубины."""
+    """Проверить неотрицательное целое значение глубины."""
     depth = config["max_depth"]
     if type(depth) is not int or depth < MIN_DEPTH:
         raise ValueError(

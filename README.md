@@ -14,7 +14,7 @@
 | `version` | строка | непустая |
 | `output_file` | строка | непустая |
 | `ascii_tree` | логический | `true` или `false` |
-| `max_depth` | целое число | не меньше 1 |
+| `max_depth` | целое число | не меньше 0 |
 | `filter` | строка | пустое значение допустимо |
 
 Настройки находятся в `config/config.yaml`. Этап 1 только читает и проверяет
@@ -42,6 +42,7 @@ python3 -m unittest discover -s tests -v
 
 ```text
 ├── config/config.yaml
+├── config/test_graph.json
 ├── src/main.py
 ├── tests/test_main.py
 ├── .gitignore

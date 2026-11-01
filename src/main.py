@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from nuget import get_direct_dependencies
 
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
@@ -120,15 +121,34 @@ def print_config(config: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    """Загрузить файл конфигурации и напечатать параметры."""
+    """Загрузить конфигурацию и вывести зависимости NuGet-пакета."""
     arguments = parse_arguments()
     try:
         config = load_config(arguments.config)
+        dependencies = get_direct_dependencies(
+            config["package_name"],
+            config["version"],
+            config["repository"],
+        )
     except ValueError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
-    print_config(config)
+    print_dependencies(config, dependencies)
     return 0
+
+
+def print_dependencies(
+    config: dict[str, Any],
+    dependencies: list[tuple[str, str]],
+) -> None:
+    """Напечатать только прямые зависимости выбранной версии пакета."""
+    package = f"{config['package_name']} {config['version']}"
+    print(f"Прямые зависимости пакета {package}:")
+    if not dependencies:
+        print("Нет прямых зависимостей.")
+        return
+    for package_id, version in dependencies:
+        print(f"- {package_id}: {version or 'версия не указана'}")
 
 
 if __name__ == "__main__":

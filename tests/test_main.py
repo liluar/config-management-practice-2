@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -105,8 +106,8 @@ class ConfigTests(unittest.TestCase):
         """Разрешить пустой фильтр для отключения фильтрации."""
         self.assertEqual(validate_config(VALID_CONFIG)["filter"], "")
 
-    def test_main_prints_key_values(self) -> None:
-        """Напечатать параметры конфигурации в формате ключ-значение."""
+    def test_main_prints_direct_dependencies(self) -> None:
+        """Вывести прямые зависимости и не печатать настройки YAML."""
         path = self.write_config(
             "package_name: A\nrepository: test_graph.json\n"
             "test_mode: true\nversion: 1.0.0\n"
@@ -116,16 +117,19 @@ class ConfigTests(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             with contextlib.redirect_stderr(io.StringIO()):
-                result = main_for(path)
+                with patch(
+                    "main.get_direct_dependencies",
+                    return_value=[("B", "[2.0, )")],
+                ):
+                    result = main_for(path)
         self.assertEqual(result, 0)
-        self.assertIn("package_name: A", output.getvalue())
-        self.assertIn("filter: ", output.getvalue())
+        self.assertIn("Прямые зависимости пакета A 1.0.0:", output.getvalue())
+        self.assertIn("- B: [2.0, )", output.getvalue())
+        self.assertNotIn("repository:", output.getvalue())
 
 
 def main_for(path: Path) -> int:
     """Вызвать main с переопределёнными аргументами."""
-    from unittest.mock import patch
-
     with patch("sys.argv", ["main.py", "--config", str(path)]):
         return main()
 

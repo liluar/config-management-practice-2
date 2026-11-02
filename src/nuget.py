@@ -6,7 +6,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ElementTree
+import xml.etree.ElementTree as element_tree
 import zipfile
 from io import BytesIO
 from typing import Any
@@ -64,7 +64,8 @@ def local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def dependency_entries(container: ElementTree.Element) -> list[tuple[str, str]]:
+def dependency_entries(container: element_tree.Element) \
+    -> list[tuple[str, str]]:
     """Извлечь зависимости из элемента или его целевых групп."""
     entries = []
     for child in container:
@@ -82,8 +83,8 @@ def dependency_entries(container: ElementTree.Element) -> list[tuple[str, str]]:
 def parse_nuspec(contents: bytes) -> list[tuple[str, str]]:
     """Прочитать прямые зависимости из XML nuspec."""
     try:
-        root = ElementTree.fromstring(contents)
-    except ElementTree.ParseError as error:
+        root = element_tree.fromstring(contents)
+    except element_tree.ParseError as error:
         raise ValueError("Некорректный XML-файл nuspec") from error
     metadata = next(
         (element for element in root.iter()

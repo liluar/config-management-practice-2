@@ -70,9 +70,16 @@ class NugetTests(unittest.TestCase):
                                         REPOSITORY_URL)
 
     def test_version_range(self) -> None:
-        """Выбрать первую конкретную версию из диапазона."""
+        """Выбрать версию только с включённой границы диапазона."""
         self.assertEqual(select_version("[2.4.0, 3.0.0)"), "2.4.0")
+        self.assertEqual(select_version("(2.4.0, 3.0.0]"), "3.0.0")
+        self.assertEqual(select_version("(, 3.0.0]"), "3.0.0")
         self.assertEqual(select_version("4.5.6"), "4.5.6")
+
+    def test_exclusive_range_has_no_safe_boundary(self) -> None:
+        """Отклонить диапазон с двумя исключёнными границами."""
+        with self.assertRaisesRegex(ValueError, "включённой границы"):
+            select_version("(2.4.0, 3.0.0)")
 
     def test_transitive_provider_selects_concrete_versions(self) -> None:
         """Передать обходу конкретную версию вместо диапазона."""
@@ -84,7 +91,7 @@ class NugetTests(unittest.TestCase):
 
     def test_unresolvable_version(self) -> None:
         """Отклонить диапазон без конкретной версии."""
-        with self.assertRaisesRegex(ValueError, "Не удалось выбрать"):
+        with self.assertRaisesRegex(ValueError, "Некорректный диапазон"):
             select_version("*")
 
 

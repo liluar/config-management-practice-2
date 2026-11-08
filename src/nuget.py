@@ -17,6 +17,9 @@ NUPKG_SUFFIX = ".nupkg"
 NUSPEC_SUFFIX = ".nuspec"
 PACKAGE_BASE_TYPE = "PackageBaseAddress/3.0.0"
 VERSION_PART = re.compile(r"\d+(?:\.\d+){0,3}(?:-[A-Za-z0-9.-]+)?")
+VERSION_RANGE = re.compile(
+    r"^(\[|\()\s*([^,]*)\s*,\s*([^\]\)]*)\s*(\]|\))$"
+)
 
 
 def download_bytes(url: str) -> bytes:
@@ -108,15 +111,37 @@ def nuspec_contents(package_data: bytes) -> bytes:
         raise ValueError("Скачанный пакет не является ZIP-архивом") from error
 
 
+def exact_version(spec: str) -> str | None:
+    """Вернуть версию из точного диапазона вида [1.2.3]."""
+    if spec.startswith("[") and spec.endswith("]") and "," not in spec:
+        version = spec[1:-1].strip()
+        if VERSION_PART.fullmatch(version):
+            return version
+    return None
+
+
+def ranged_version(spec: str) -> str:
+    """Выбрать включённую границу NuGet version range."""
+    match = VERSION_RANGE.fullmatch(spec)
+    if match is None:
+        raise ValueError(f"Некорректный диапазон версий: {spec}")
+    left_mark, lower, upper, right_mark = match.groups()
+    if lower and left_mark == "[" and VERSION_PART.fullmatch(lower):
+        return lower
+    if upper and right_mark == "]" and VERSION_PART.fullmatch(upper):
+        return upper
+    raise ValueError(f"Нет конкретной включённой границы: {spec}")
+
+
 def select_version(version_spec: str) -> str:
-    """Выбрать первую конкретную версию из простого version range."""
+    """Выбрать конкретную версию, входящую в заданный диапазон."""
     spec = version_spec.strip()
     if VERSION_PART.fullmatch(spec):
         return spec
-    versions = VERSION_PART.findall(spec)
-    if not versions:
-        raise ValueError(f"Не удалось выбрать версию из диапазона: {spec}")
-    return versions[0]
+    exact = exact_version(spec)
+    if exact is not None:
+        return exact
+    return ranged_version(spec)
 
 
 def get_direct_dependencies(

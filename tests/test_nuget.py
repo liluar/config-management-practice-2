@@ -1,5 +1,6 @@
 """Проверить ручной разбор NuGet-пакетов без сетевого доступа."""
 
+import importlib
 import io
 import json
 import sys
@@ -9,8 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from nuget import (get_direct_dependencies, get_transitive_dependencies,
-                   parse_nuspec, select_version)
+nuget_module = importlib.import_module("nuget")
 
 REPOSITORY_URL = "https://api.nuget.org/v3/index.json"
 INDEX_CONTENT = json.dumps({"resources": [{
@@ -42,7 +42,7 @@ class NugetTests(unittest.TestCase):
 
     def test_parse_direct_dependencies(self) -> None:
         """Прочитать прямые зависимости из всех групп."""
-        self.assertEqual(parse_nuspec(NUSPEC_CONTENT), [
+        self.assertEqual(nuget_module.parse_nuspec(NUSPEC_CONTENT), [
             ("Direct.One", "[2.0, )"), ("Direct.Two", "4.5.6")])
 
     def test_downloads_requested_version(self) -> None:
@@ -51,7 +51,7 @@ class NugetTests(unittest.TestCase):
         with patch(
             "nuget.urllib.request.urlopen", side_effect=responses
         ) as opened:
-            deps = get_direct_dependencies(
+            deps = nuget_module.get_direct_dependencies(
                 "Example.Package", "1.2.3", REPOSITORY_URL)
         self.assertEqual(len(deps), 2)
         request = opened.call_args_list[1].args[0]
@@ -66,33 +66,37 @@ class NugetTests(unittest.TestCase):
         responses = [io.BytesIO(INDEX_CONTENT), io.BytesIO(buffer.getvalue())]
         with patch("nuget.urllib.request.urlopen", side_effect=responses):
             with self.assertRaisesRegex(ValueError, "не найден файл .nuspec"):
-                get_direct_dependencies("Example.Package", "1.2.3",
-                                        REPOSITORY_URL)
+                nuget_module.get_direct_dependencies(
+                    "Example.Package", "1.2.3", REPOSITORY_URL)
 
     def test_version_range(self) -> None:
         """Выбрать версию только с включённой границы диапазона."""
-        self.assertEqual(select_version("[2.4.0, 3.0.0)"), "2.4.0")
-        self.assertEqual(select_version("(2.4.0, 3.0.0]"), "3.0.0")
-        self.assertEqual(select_version("(, 3.0.0]"), "3.0.0")
-        self.assertEqual(select_version("4.5.6"), "4.5.6")
+        bounded = nuget_module.select_version("[2.4.0, 3.0.0)")
+        exclusive = nuget_module.select_version("(2.4.0, 3.0.0]")
+        open_bound = nuget_module.select_version("(, 3.0.0]")
+        self.assertEqual(bounded, "2.4.0")
+        self.assertEqual(exclusive, "3.0.0")
+        self.assertEqual(open_bound, "3.0.0")
+        self.assertEqual(nuget_module.select_version("4.5.6"), "4.5.6")
 
     def test_exclusive_range_has_no_safe_boundary(self) -> None:
         """Отклонить диапазон с двумя исключёнными границами."""
         with self.assertRaisesRegex(ValueError, "включённой границы"):
-            select_version("(2.4.0, 3.0.0)")
+            nuget_module.select_version("(2.4.0, 3.0.0)")
 
     def test_transitive_provider_selects_concrete_versions(self) -> None:
         """Передать обходу конкретную версию вместо диапазона."""
         with patch("nuget.get_direct_dependencies", return_value=[
             ("Child", "[2.4.0, 3.0.0)")
         ]):
-            result = get_transitive_dependencies("Root", "1.0.0", "feed")
+            result = nuget_module.get_transitive_dependencies(
+                "Root", "1.0.0", "feed")
         self.assertEqual(result, [("Child", "2.4.0")])
 
     def test_unresolvable_version(self) -> None:
         """Отклонить диапазон без конкретной версии."""
         with self.assertRaisesRegex(ValueError, "Некорректный диапазон"):
-            select_version("*")
+            nuget_module.select_version("*")
 
 
 if __name__ == "__main__":

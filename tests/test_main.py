@@ -1,6 +1,7 @@
 """Проверить конфигурацию, граф зависимостей и тестовый режим."""
 
 import contextlib
+import importlib
 import io
 import json
 import sys
@@ -10,9 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from main import (build_dependency_graph, build_reverse_dependency_graph,
-                  load_config, main, read_test_graph, test_provider,
-                  validate_config)
+main_module = importlib.import_module("main")
 
 VALID_CONFIG = {
     "package_name": "A", "repository": "test_graph.json",
@@ -41,16 +40,17 @@ class ConfigTests(unittest.TestCase):
                    "test_mode: true\nversion: 1.0.0\n"
                    "output_file: output/dependencies.svg\n"
                    "ascii_tree: true\nmax_depth: 5\nfilter: ''\n")
-        self.assertEqual(load_config(self.write_config(content)), VALID_CONFIG)
+        config = main_module.load_config(self.write_config(content))
+        self.assertEqual(config, VALID_CONFIG)
 
     def test_missing_file_and_key(self) -> None:
         """Отклонить отсутствующий файл и обязательный параметр."""
         with self.assertRaisesRegex(ValueError, "не найден"):
-            load_config(Path("missing-config.yaml"))
+            main_module.load_config(Path("missing-config.yaml"))
         config = dict(VALID_CONFIG)
         del config["version"]
         with self.assertRaisesRegex(ValueError, "version"):
-            validate_config(config)
+            main_module.validate_config(config)
 
     def test_invalid_values(self) -> None:
         """Отклонить неверные типы параметров и глубину."""
@@ -62,7 +62,7 @@ class ConfigTests(unittest.TestCase):
         for changes, message in cases:
             with self.subTest(changes=changes):
                 with self.assertRaisesRegex(ValueError, message):
-                    validate_config(dict(VALID_CONFIG, **changes))
+                    main_module.validate_config(dict(VALID_CONFIG, **changes))
 
 
 class GraphTests(unittest.TestCase):
@@ -73,13 +73,13 @@ class GraphTests(unittest.TestCase):
         data = {"A": ["B", "C"], "B": ["D", "E"],
                 "C": ["E", "F"], "D": ["A"],
                 "E": ["G"], "F": [], "G": []}
-        return test_provider(data)
+        return main_module.test_provider(data)
 
     def build(self, depth: int = 5, filter_text: str = "") -> dict:
         """Запустить обход тестового графа."""
         provider = self.make_provider()
-        return build_dependency_graph("A", "1.0.0", depth, filter_text,
-                                      provider)
+        return main_module.build_dependency_graph(
+            "A", "1.0.0", depth, filter_text, provider)
 
     def test_recursive_bfs_and_cycle(self) -> None:
         """Обойти ветви по ширине, сохранив цикл A-D-A."""
@@ -102,22 +102,29 @@ class GraphTests(unittest.TestCase):
             "E": ["G"], "G": []})
 
     def test_read_graph_and_cli_test_mode(self) -> None:
-        """Прочитать тестовый файл и вывести весь граф CLI."""
+        """Загрузить локальный граф и создать stage-5 изображения."""
         project = Path(__file__).resolve().parents[1]
         config = project / "config" / "test_mode.yaml"
         graph_path = config.parent / "test_graph.json"
-        self.assertEqual(read_test_graph(graph_path)["A"], ["B", "C"])
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            with patch("sys.argv", ["main.py", "--config", str(config)]):
-                self.assertEqual(main(), 0)
-        self.assertIn("A -> B", output.getvalue())
-        self.assertIn("E -> G", output.getvalue())
+        graph = main_module.read_test_graph(graph_path)
+        self.assertEqual(graph["A"], ["B", "C"])
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "graph.svg"
+            output = io.StringIO()
+            args = ["main.py", "--config", str(config), "--package", "C",
+                    "--output", str(output_path)]
+            with contextlib.redirect_stdout(output):
+                with patch("sys.argv", args):
+                    self.assertEqual(main_module.main(), 0)
+            self.assertTrue(output_path.is_file())
+            self.assertTrue(output_path.with_suffix(".mmd").is_file())
+            self.assertIn("C -> E", output.getvalue())
+            self.assertIn("ASCII-дерева", output.getvalue())
 
     def test_reverse_dependencies_include_transitive_and_cycles(self) -> None:
         """Найти всех зависимых и остановиться на цикле."""
         graph = self.build()
-        reverse = build_reverse_dependency_graph(
+        reverse = main_module.build_reverse_dependency_graph(
             graph, "G", "1.0.0", 5, "")
         self.assertEqual(reverse["G"], ["E"])
         self.assertEqual(reverse["E"], ["B", "C"])
@@ -133,7 +140,7 @@ class GraphTests(unittest.TestCase):
                 "--reverse-dependencies", "G"]
         with contextlib.redirect_stdout(output):
             with patch("sys.argv", args):
-                self.assertEqual(main(), 0)
+                self.assertEqual(main_module.main(), 0)
         self.assertIn("G <- E", output.getvalue())
         self.assertIn("E <- B", output.getvalue())
         self.assertIn("C <- A", output.getvalue())
@@ -141,17 +148,17 @@ class GraphTests(unittest.TestCase):
     def test_reverse_depth_and_direct_dependent(self) -> None:
         """Ограничить глубину и показать прямого зависимого."""
         graph = self.build()
-        direct = build_reverse_dependency_graph(
+        direct = main_module.build_reverse_dependency_graph(
             graph, "F", "1.0.0", 1, "")
         self.assertEqual(direct, {"F": ["C"], "C": []})
-        limited = build_reverse_dependency_graph(
+        limited = main_module.build_reverse_dependency_graph(
             graph, "G", "1.0.0", 1, "")
         self.assertEqual(limited, {"G": ["E"], "E": []})
 
     def test_reverse_mode_rejects_missing_target(self) -> None:
         """Сообщить о пакете вне построенного графа."""
         with self.assertRaisesRegex(ValueError, "не найден"):
-            build_reverse_dependency_graph(
+            main_module.build_reverse_dependency_graph(
                 self.build(), "Z", "1.0.0", 5, "")
 
     def test_graph_rejects_invalid_names(self) -> None:
@@ -160,7 +167,7 @@ class GraphTests(unittest.TestCase):
             path = Path(directory) / "graph.json"
             path.write_text(json.dumps({"Alpha": ["B"]}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "имя"):
-                read_test_graph(path)
+                main_module.read_test_graph(path)
 
 
 if __name__ == "__main__":

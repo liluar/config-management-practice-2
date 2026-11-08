@@ -10,8 +10,11 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
 import yaml
+
 from nuget import get_transitive_dependencies
+from visualization import print_ascii_tree, write_visualization
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
 REQUIRED_KEYS = ("package_name", "repository", "test_mode", "version",
@@ -40,6 +43,8 @@ def parse_arguments() -> argparse.Namespace:
         "--reverse-dependencies", metavar="PACKAGE",
         help="показать пакеты, зависящие от PACKAGE",
     )
+    parser.add_argument("--package", help="переопределить корневой пакет")
+    parser.add_argument("--output", type=Path, help="путь к SVG-файлу")
     return parser.parse_args()
 
 
@@ -242,15 +247,28 @@ def main() -> int:
     try:
         config = load_config(arguments.config)
         provider = configured_provider(config, arguments.config)
+        package_name = arguments.package or config["package_name"]
         graph = build_dependency_graph(
-            config["package_name"], config["version"], config["max_depth"],
+            package_name, config["version"], config["max_depth"],
             config["filter"], provider)
     except ValueError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
     target = arguments.reverse_dependencies
     if target is None:
-        print_graph(config["package_name"], config["version"], graph)
+        print_graph(package_name, config["version"], graph)
+        if config["ascii_tree"]:
+            print_ascii_tree(package_name, graph)
+        output_path = arguments.output or Path(config["output_file"])
+        if not output_path.is_absolute():
+            output_path = Path(__file__).resolve().parents[1] / output_path
+        try:
+            mermaid_path = write_visualization(graph, output_path)
+        except (OSError, ValueError) as error:
+            print(f"Ошибка: {error}", file=sys.stderr)
+            return 1
+        print(f"Mermaid source: {mermaid_path}")
+        print(f"SVG saved: {output_path}")
         return 0
     try:
         reverse_graph = build_reverse_dependency_graph(

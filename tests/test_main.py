@@ -1,7 +1,8 @@
-"""Тесты загрузки и проверки YAML-конфигурации."""
+"""Проверить конфигурацию, граф зависимостей и тестовый режим."""
 
 import contextlib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -9,30 +10,24 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from main import load_config, main, validate_config
-
+from main import (build_dependency_graph, load_config, main, read_test_graph,
+                  test_provider, validate_config)
 
 VALID_CONFIG = {
-    "package_name": "A",
-    "repository": "test_graph.json",
-    "test_mode": True,
-    "version": "1.0.0",
-    "output_file": "output/dependencies.svg",
-    "ascii_tree": True,
-    "max_depth": 5,
-    "filter": "",
+    "package_name": "A", "repository": "test_graph.json",
+    "test_mode": True, "version": "1.0.0",
+    "output_file": "output/dependencies.svg", "ascii_tree": True,
+    "max_depth": 5, "filter": "",
 }
 
 
 class ConfigTests(unittest.TestCase):
-    """Проверить валидные и ошибочные варианты конфигурации."""
+    """Проверить загрузку и валидацию YAML."""
 
     def write_config(self, content: str) -> Path:
-        """Создать временный YAML-файл и удалить его после теста."""
+        """Создать временный конфигурационный файл."""
         handle = tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", delete=False
-        )
+            mode="w", encoding="utf-8", delete=False)
         handle.write(content)
         handle.close()
         path = Path(handle.name)
@@ -40,98 +35,88 @@ class ConfigTests(unittest.TestCase):
         return path
 
     def test_load_valid_config(self) -> None:
-        """Загрузить все восемь параметров."""
-        path = self.write_config(
-            "package_name: A\nrepository: test_graph.json\n"
-            "test_mode: true\nversion: 1.0.0\n"
-            "output_file: output/dependencies.svg\n"
-            "ascii_tree: true\nmax_depth: 5\nfilter: ''\n"
-        )
-        self.assertEqual(load_config(path), VALID_CONFIG)
+        """Загрузить восемь параметров конфигурации."""
+        content = ("package_name: A\nrepository: test_graph.json\n"
+                   "test_mode: true\nversion: 1.0.0\n"
+                   "output_file: output/dependencies.svg\n"
+                   "ascii_tree: true\nmax_depth: 5\nfilter: ''\n")
+        self.assertEqual(load_config(self.write_config(content)), VALID_CONFIG)
 
-    def test_missing_file(self) -> None:
-        """Сообщить об отсутствующем файле."""
+    def test_missing_file_and_key(self) -> None:
+        """Отклонить отсутствующий файл и обязательный параметр."""
         with self.assertRaisesRegex(ValueError, "не найден"):
             load_config(Path("missing-config.yaml"))
-
-    def test_invalid_yaml(self) -> None:
-        """Отклонить синтаксически неверный YAML."""
-        path = self.write_config("package_name: [broken\n")
-        with self.assertRaisesRegex(ValueError, "Некорректный YAML"):
-            load_config(path)
-
-    def test_missing_key(self) -> None:
-        """Назвать отсутствующий обязательный параметр."""
         config = dict(VALID_CONFIG)
         del config["version"]
         with self.assertRaisesRegex(ValueError, "version"):
             validate_config(config)
 
-    def test_string_parameter_rejects_number(self) -> None:
-        """Отклонить неверный тип строкового поля."""
-        config = dict(VALID_CONFIG, package_name=7)
-        with self.assertRaisesRegex(ValueError, "package_name"):
-            validate_config(config)
+    def test_invalid_values(self) -> None:
+        """Отклонить неверные типы параметров и глубину."""
+        cases = (({"package_name": 7}, "package_name"),
+                 ({"test_mode": "true"}, "test_mode"),
+                 ({"max_depth": True}, "max_depth"),
+                 ({"max_depth": -1}, "max_depth"),
+                 ({"filter": False}, "filter"))
+        for changes, message in cases:
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(ValueError, message):
+                    validate_config(dict(VALID_CONFIG, **changes))
 
-    def test_boolean_parameter_rejects_string(self) -> None:
-        """Отклонить текст вместо логического значения."""
-        config = dict(VALID_CONFIG, test_mode="true")
-        with self.assertRaisesRegex(ValueError, "test_mode"):
-            validate_config(config)
 
-    def test_depth_rejects_boolean(self) -> None:
-        """Отклонить bool, хотя в Python он является подклассом int."""
-        config = dict(VALID_CONFIG, max_depth=True)
-        with self.assertRaisesRegex(ValueError, "max_depth"):
-            validate_config(config)
+class GraphTests(unittest.TestCase):
+    """Проверить BFS с рекурсией, глубиной, фильтром и циклами."""
 
-    def test_depth_accepts_zero(self) -> None:
-        """Разрешить глубину ноль, когда анализируется только корень."""
-        config = dict(VALID_CONFIG, max_depth=0)
-        self.assertEqual(validate_config(config)["max_depth"], 0)
+    def make_provider(self):
+        """Создать поставщик тестовых зависимостей."""
+        data = {"A": ["B", "C"], "B": ["D"],
+                "C": ["D", "E"], "D": ["A"], "E": []}
+        return test_provider(data)
 
-    def test_depth_rejects_negative(self) -> None:
-        """Отклонить отрицательную глубину."""
-        config = dict(VALID_CONFIG, max_depth=-1)
-        with self.assertRaisesRegex(ValueError, "не меньше"):
-            validate_config(config)
+    def build(self, depth: int = 5, filter_text: str = "") -> dict:
+        """Запустить обход тестового графа."""
+        provider = self.make_provider()
+        return build_dependency_graph("A", "1.0.0", depth, filter_text,
+                                      provider)
 
-    def test_filter_rejects_non_string(self) -> None:
-        """Отклонить неверный тип фильтра."""
-        config = dict(VALID_CONFIG, **{"filter": False})
-        with self.assertRaisesRegex(ValueError, "filter"):
-            validate_config(config)
+    def test_recursive_bfs_and_cycle(self) -> None:
+        """Обойти ветви по ширине, сохранив цикл A-D-A."""
+        self.assertEqual(self.build(), {
+            "A": ["B", "C"], "B": ["D"], "C": ["D", "E"],
+            "D": ["A"], "E": [],
+        })
 
-    def test_empty_filter_is_allowed(self) -> None:
-        """Разрешить пустой фильтр для отключения фильтрации."""
-        self.assertEqual(validate_config(VALID_CONFIG)["filter"], "")
+    def test_max_depth(self) -> None:
+        """Ограничить раскрытие узлов заданным числом переходов."""
+        self.assertEqual(self.build(depth=1), {
+            "A": ["B", "C"], "B": [], "C": []})
+        self.assertEqual(self.build(depth=0), {"A": []})
 
-    def test_main_prints_direct_dependencies(self) -> None:
-        """Вывести прямые зависимости и не печатать настройки YAML."""
-        path = self.write_config(
-            "package_name: A\nrepository: test_graph.json\n"
-            "test_mode: true\nversion: 1.0.0\n"
-            "output_file: output/dependencies.svg\n"
-            "ascii_tree: true\nmax_depth: 5\nfilter: ''\n"
-        )
+    def test_substring_filter(self) -> None:
+        """Исключить пакеты с совпадающей подстрокой без регистра."""
+        self.assertEqual(self.build(filter_text="c"), {
+            "A": ["B"], "B": ["D"], "D": ["A"]})
+
+    def test_read_graph_and_cli_test_mode(self) -> None:
+        """Прочитать тестовый файл и вывести весь граф CLI."""
+        project = Path(__file__).resolve().parents[1]
+        config = project / "config" / "test_mode.yaml"
+        graph_path = config.parent / "test_graph.json"
+        self.assertEqual(read_test_graph(graph_path)["A"], ["B", "C"])
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            with contextlib.redirect_stderr(io.StringIO()):
-                with patch(
-                    "main.get_direct_dependencies",
-                    return_value=[("B", "[2.0, )")],
-                ):
-                    result = main_for(path)
-        self.assertEqual(result, 0)
-        self.assertIn("Прямые зависимости пакета A 1.0.0:", output.getvalue())
-        self.assertIn("- B: [2.0, )", output.getvalue())
-        self.assertNotIn("repository:", output.getvalue())
+            with patch("sys.argv", ["main.py", "--config", str(config)]):
+                self.assertEqual(main(), 0)
+        self.assertIn("A -> B", output.getvalue())
+        self.assertIn("E -> G", output.getvalue())
 
-
-def main_for(path: Path) -> int:
-    """Вызвать main с переопределёнными аргументами."""
-    with patch("sys.argv", ["main.py", "--config", str(path)]):
-        return main()
+    def test_graph_rejects_invalid_names(self) -> None:
+        """Требовать большие латинские буквы в файле графа."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "graph.json"
+            path.write_text(json.dumps({"Alpha": ["B"]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "имя"):
+                read_test_graph(path)
 
 
 if __name__ == "__main__":

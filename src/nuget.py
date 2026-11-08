@@ -1,8 +1,9 @@
-"""Ручная загрузка и разбор прямых зависимостей пакета NuGet."""
+"""Ручная загрузка и разбор метаданных NuGet-пакетов."""
 
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -11,15 +12,15 @@ import zipfile
 from io import BytesIO
 from typing import Any
 
-
 HTTP_TIMEOUT = 30
 NUPKG_SUFFIX = ".nupkg"
 NUSPEC_SUFFIX = ".nuspec"
 PACKAGE_BASE_TYPE = "PackageBaseAddress/3.0.0"
+VERSION_PART = re.compile(r"\d+(?:\.\d+){0,3}(?:-[A-Za-z0-9.-]+)?")
 
 
 def download_bytes(url: str) -> bytes:
-    """Скачать содержимое URL стандартным HTTP-клиентом."""
+    """Скачать данные обычным HTTP-клиентом Python."""
     request = urllib.request.Request(url)
     try:
         with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
@@ -29,7 +30,7 @@ def download_bytes(url: str) -> bytes:
 
 
 def resource_types(resource: dict[str, Any]) -> list[str]:
-    """Нормализовать поле типа ресурса из индекса NuGet."""
+    """Нормализовать тип ресурса индекса NuGet."""
     value = resource.get("@type", [])
     if isinstance(value, str):
         return [value]
@@ -39,20 +40,19 @@ def resource_types(resource: dict[str, Any]) -> list[str]:
 
 
 def package_base_address(repository_url: str) -> str:
-    """Найти адрес хранилища пакетов в индексе NuGet V3."""
+    """Найти базовый URL пакетов в индексе NuGet V3."""
     try:
         index = json.loads(download_bytes(repository_url))
     except (json.JSONDecodeError, UnicodeDecodeError) as error:
         raise ValueError("Некорректный индекс NuGet") from error
-    resources = index.get("resources", [])
-    for resource in resources:
+    for resource in index.get("resources", []):
         if PACKAGE_BASE_TYPE in resource_types(resource):
             return resource["@id"].rstrip("/")
     raise ValueError("В индексе NuGet не найдено хранилище пакетов")
 
 
 def package_url(base_url: str, package_name: str, version: str) -> str:
-    """Сформировать URL .nupkg для заданных имени и версии."""
+    """Сформировать URL .nupkg для заданного пакета."""
     package_id = urllib.parse.quote(package_name.lower(), safe=".-")
     package_version = urllib.parse.quote(version.lower(), safe=".-")
     filename = f"{package_id}.{package_version}{NUPKG_SUFFIX}"
@@ -60,13 +60,13 @@ def package_url(base_url: str, package_name: str, version: str) -> str:
 
 
 def local_name(tag: str) -> str:
-    """Вернуть имя XML-элемента без пространства имён."""
+    """Вернуть XML-имя без пространства имён."""
     return tag.rsplit("}", 1)[-1]
 
 
 def dependency_entries(container: element_tree.Element) \
-    -> list[tuple[str, str]]:
-    """Извлечь зависимости из элемента или его целевых групп."""
+        -> list[tuple[str, str]]:
+    """Извлечь зависимости из элемента или целевых групп."""
     entries = []
     for child in container:
         elements = child if local_name(child.tag) == "group" else [child]
@@ -81,37 +81,26 @@ def dependency_entries(container: element_tree.Element) \
 
 
 def parse_nuspec(contents: bytes) -> list[tuple[str, str]]:
-    """Прочитать прямые зависимости из XML nuspec."""
+    """Разобрать прямые зависимости XML-файла nuspec."""
     try:
         root = element_tree.fromstring(contents)
     except element_tree.ParseError as error:
         raise ValueError("Некорректный XML-файл nuspec") from error
-    metadata = next(
-        (element for element in root.iter()
-         if local_name(element.tag) == "metadata"),
-        None,
-    )
+    metadata = next((element for element in root.iter()
+                     if local_name(element.tag) == "metadata"), None)
     if metadata is None:
         raise ValueError("В nuspec не найден элемент metadata")
-    dependencies = next(
-        (element for element in metadata
-         if local_name(element.tag) == "dependencies"),
-        None,
-    )
-    if dependencies is None:
-        return []
-    return dependency_entries(dependencies)
+    dependencies = next((element for element in metadata
+                         if local_name(element.tag) == "dependencies"), None)
+    return dependency_entries(dependencies) if dependencies is not None else []
 
 
 def nuspec_contents(package_data: bytes) -> bytes:
-    """Открыть ZIP-пакет и прочитать содержащийся в нём nuspec."""
+    """Открыть ZIP-пакет и прочитать файл nuspec."""
     try:
         with zipfile.ZipFile(BytesIO(package_data)) as archive:
-            nuspec_path = next(
-                (name for name in archive.namelist()
-                 if name.lower().endswith(NUSPEC_SUFFIX)),
-                None,
-            )
+            nuspec_path = next((name for name in archive.namelist()
+                                if name.lower().endswith(NUSPEC_SUFFIX)), None)
             if nuspec_path is None:
                 raise ValueError("В .nupkg не найден файл .nuspec")
             return archive.read(nuspec_path)
@@ -119,12 +108,30 @@ def nuspec_contents(package_data: bytes) -> bytes:
         raise ValueError("Скачанный пакет не является ZIP-архивом") from error
 
 
+def select_version(version_spec: str) -> str:
+    """Выбрать первую конкретную версию из простого version range."""
+    spec = version_spec.strip()
+    if VERSION_PART.fullmatch(spec):
+        return spec
+    versions = VERSION_PART.findall(spec)
+    if not versions:
+        raise ValueError(f"Не удалось выбрать версию из диапазона: {spec}")
+    return versions[0]
+
+
 def get_direct_dependencies(
-    package_name: str,
-    version: str,
-    repository_url: str,
+    package_name: str, version: str, repository_url: str,
 ) -> list[tuple[str, str]]:
-    """Скачать пакет заданной версии и вернуть его прямые зависимости."""
+    """Скачать пакет и вернуть зависимости из его nuspec."""
     base_url = package_base_address(repository_url)
-    package_data = download_bytes(package_url(base_url, package_name, version))
-    return parse_nuspec(nuspec_contents(package_data))
+    data = download_bytes(package_url(base_url, package_name, version))
+    return parse_nuspec(nuspec_contents(data))
+
+
+def get_transitive_dependencies(
+    package_name: str, version: str, repository_url: str,
+) -> list[tuple[str, str]]:
+    """Получить зависимости и выбрать версии для рекурсивного обхода."""
+    dependencies = get_direct_dependencies(
+        package_name, version, repository_url)
+    return [(name, select_version(spec)) for name, spec in dependencies]

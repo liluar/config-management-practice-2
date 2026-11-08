@@ -36,6 +36,10 @@ def parse_arguments() -> argparse.Namespace:
     """Разобрать аргументы командной строки."""
     parser = argparse.ArgumentParser(description="Граф зависимостей")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--reverse-dependencies", metavar="PACKAGE",
+        help="показать пакеты, зависящие от PACKAGE",
+    )
     return parser.parse_args()
 
 
@@ -198,6 +202,40 @@ def print_graph(root: str, version: str, graph: dict[str, list[str]]) -> None:
         print(f"{source} -> {target}")
 
 
+def reverse_provider(
+    graph: dict[str, list[str]],
+) -> DependencyProvider:
+    """Создать поставщик смежных пакетов обратного графа."""
+    reversed_graph = {package: [] for package in graph}
+    for package, dependencies in graph.items():
+        for dependency in dependencies:
+            reversed_graph.setdefault(dependency, []).append(package)
+    return test_provider(reversed_graph)
+
+
+def build_reverse_dependency_graph(
+    graph: dict[str, list[str]], target: str, version: str,
+    max_depth: int, filter_text: str,
+) -> dict[str, list[str]]:
+    """Найти прямых и транзитивных зависимых тем же BFS-обходом."""
+    if target not in graph:
+        raise ValueError(f"Пакет '{target}' не найден в построенном графе")
+    return build_dependency_graph(
+        target, version, max_depth, filter_text, reverse_provider(graph))
+
+
+def print_reverse_graph(target: str, graph: dict[str, list[str]]) -> None:
+    """Напечатать обратные рёбра от пакета к его зависимым."""
+    print(f"Обратные зависимости пакета {target}:")
+    edges = [(package, dependent) for package, dependents in graph.items()
+             for dependent in dependents]
+    if not edges:
+        print("Обратных зависимостей не найдено.")
+        return
+    for package, dependent in edges:
+        print(f"{package} <- {dependent}")
+
+
 def main() -> int:
     """Загрузить настройки, построить и вывести граф."""
     arguments = parse_arguments()
@@ -210,7 +248,18 @@ def main() -> int:
     except ValueError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
-    print_graph(config["package_name"], config["version"], graph)
+    target = arguments.reverse_dependencies
+    if target is None:
+        print_graph(config["package_name"], config["version"], graph)
+        return 0
+    try:
+        reverse_graph = build_reverse_dependency_graph(
+            graph, target, config["version"], config["max_depth"],
+            config["filter"])
+    except ValueError as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
+    print_reverse_graph(target, reverse_graph)
     return 0
 
 

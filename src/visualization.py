@@ -18,9 +18,12 @@ SVG_VERTICAL_GAP = 48
 SVG_FONT_SIZE = 14
 SVG_CURVE_OFFSET = 36
 SVG_CYCLE_OFFSET = 24
+SVG_CAPTION_HEIGHT = 38
 
 
-def mermaid_source(graph: dict[str, list[str]]) -> str:
+def mermaid_source(
+    graph: dict[str, list[str]], caption: str = ""
+) -> str:
     """Сформировать текст Mermaid с устойчивыми идентификаторами узлов."""
     names = list(graph)
     identifiers = {name: f"N{index}" for index, name in enumerate(names)}
@@ -129,9 +132,11 @@ def edge_svg(
     )
 
 
-def svg_source(graph: dict[str, list[str]]) -> str:
+def svg_source(graph: dict[str, list[str]], caption: str = "") -> str:
     """Сформировать автономное SVG-изображение направленного графа."""
-    positions, width, height = layout_nodes(graph)
+    positions, width, chart_height = layout_nodes(graph)
+    caption_height = SVG_CAPTION_HEIGHT if caption else 0
+    height = chart_height + caption_height
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
         f'height="{height}" viewBox="0 0 {width} {height}">',
@@ -155,20 +160,28 @@ def svg_source(graph: dict[str, list[str]]) -> str:
             f'font-family="Arial, sans-serif" font-size="{SVG_FONT_SIZE}" '
             f'fill="#0f172a">{label}</text>',
         ])
+    if caption:
+        caption_y = chart_height + caption_height // 2 + SVG_FONT_SIZE // 2
+        lines.append(
+            f'<text x="{width // 2}" y="{caption_y}" text-anchor="middle" '
+            f'font-family="Arial, sans-serif" font-size="{SVG_FONT_SIZE}" '
+            f'fill="#334155">{html.escape(caption)}</text>'
+        )
     lines.append('</svg>')
     return "\n".join(lines) + "\n"
 
 
 def write_visualization(
-    graph: dict[str, list[str]], output_path: Path,
+    graph: dict[str, list[str]], output_path: Path, caption: str = "",
 ) -> Path:
     """Сохранить SVG и Mermaid-файл рядом; вернуть путь к Mermaid."""
     if output_path.suffix.lower() != ".svg":
         raise ValueError("Путь output_file должен иметь расширение .svg")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mermaid_path = output_path.with_suffix(".mmd")
-    mermaid_path.write_text(mermaid_source(graph), encoding="utf-8")
-    output_path.write_text(svg_source(graph), encoding="utf-8")
+    mermaid_path.write_text(
+        mermaid_source(graph, caption), encoding="utf-8")
+    output_path.write_text(svg_source(graph, caption), encoding="utf-8")
     return mermaid_path
 
 

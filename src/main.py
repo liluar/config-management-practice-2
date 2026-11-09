@@ -263,7 +263,12 @@ def main() -> int:
         if not output_path.is_absolute():
             output_path = Path(__file__).resolve().parents[1] / output_path
         try:
-            mermaid_path = write_visualization(graph, output_path)
+            caption = (
+                f"Версия корневого пакета {package_name}: "
+                f"{config['version']}"
+            )
+            mermaid_path = write_visualization(
+                graph, output_path, caption)
         except (OSError, ValueError) as error:
             print(f"Ошибка: {error}", file=sys.stderr)
             return 1

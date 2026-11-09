@@ -4,7 +4,7 @@ import importlib
 import sys
 import tempfile
 import unittest
-import xml.etree.ElementTree as element_tree
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -41,7 +41,7 @@ class VisualizationTests(unittest.TestCase):
                 SAMPLE_GRAPH, output)
             self.assertTrue(mermaid_path.is_file())
             self.assertTrue(output.is_file())
-            root = element_tree.parse(output).getroot()
+            root = ElementTree.parse(output).getroot()
             mermaid_text = mermaid_path.read_text(encoding="utf-8")
             svg_edges = root.findall(
                 ".//svg:path[@marker-end]",
@@ -56,7 +56,7 @@ class VisualizationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "empty.svg"
             visualization_module.write_visualization({}, output)
-            root = element_tree.parse(output).getroot()
+            root = ElementTree.parse(output).getroot()
         self.assertEqual(root.tag, "{http://www.w3.org/2000/svg}svg")
 
     def test_requires_svg_extension(self) -> None:

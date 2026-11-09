@@ -43,6 +43,7 @@ NuGet CLI/SDK, `dotnet`, GitHub и готовые средства разреш�
 | --- | --- |
 | `--config PATH` | выбрать YAML-файл |
 | `--package ID` | заменить корневой пакет из YAML |
+| `--version VERSION` | заменить версию корневого пакета из YAML |
 | `--output PATH` | заменить путь к SVG (Mermaid сохраняется рядом) |
 | `--reverse-dependencies PACKAGE` | вывести обратные рёбра для пакета, найденного в построенном графе |
 
@@ -95,21 +96,24 @@ NuGet CLI/SDK, `dotnet`, GitHub и готовые средства разреш�
   упрощённую стратегию к версии или диапазону.
 - `get_direct_dependencies` скачивает пакет и читает его `.nuspec`;
   `get_transitive_dependencies` выбирает конкретные версии для следующего
-  уровня обхода.
+  уровня обхода; `get_dependency_details` дополнительно возвращает исходное
+  условие версии для подписи ребра.
 
 ### `src/visualization.py`
 
-- `mermaid_source` формирует Mermaid-текст со стабильными ID;
+- `mermaid_source` формирует Mermaid с версией в каждом узле и условием на
+  каждом ребре;
   `node_levels` назначает минимальные уровни узлам обходом в ширину.
 - `node_width` оценивает ширину SVG-узла; `layout_nodes` размещает узлы
-  по колонкам уровней; `edge_svg` формирует SVG-путь ребра со стрелкой.
+  по колонкам уровней; `edge_svg` рисует стрелку с условием версии.
 - `svg_source` создаёт автономное SVG с узлами и рёбрами;
   `write_visualization` сохраняет Mermaid и SVG рядом.
 - `ascii_tree` строит дерево и отмечает циклы/повторные узлы;
   `print_ascii_tree` печатает это дерево.
 - `MERMAID_HEADER` и `SVG_MARGIN`, `SVG_NODE_HEIGHT`, `SVG_MIN_NODE_WIDTH`,
   `SVG_CHAR_WIDTH`, `SVG_HORIZONTAL_PADDING`, `SVG_HORIZONTAL_GAP`,
-  `SVG_VERTICAL_GAP`, `SVG_FONT_SIZE`, `SVG_CURVE_OFFSET` и
+  `SVG_VERTICAL_GAP`, `SVG_FONT_SIZE`, `SVG_VERSION_FONT_SIZE`,
+  `SVG_CONSTRAINT_FONT_SIZE`, `SVG_CURVE_OFFSET` и
   `SVG_CYCLE_OFFSET` задают формат диаграммы и геометрию SVG.
 
 ## Запуск, сборка и тесты
@@ -134,40 +138,46 @@ python3 -m unittest discover -s tests -v
 В `examples/visualizations/real/` сохранены Mermaid и SVG, созданные запуском
 программы с теми же NuGet V3 → `.nupkg` → ZIP → `.nuspec` и собственным BFS.
 Для воспроизводимости все три примера ограничены `max_depth: 2`; графы
-объединяют зависимости, объявленные в группах `.nuspec`. Каждый SVG имеет
+объединяют зависимости, объявленные в группах `.nuspec`. В каждом узле показаны
+имя пакета и выбранная для обхода версия; на каждой стрелке указано исходное
+ограничение версии из `.nuspec`. Это тот же смысл подписей, что и в примере
+варианта 7: версия относится к узлу, условие — к связи. Каждый SVG имеет
 одноимённый `.mmd`:
 
 ### Serilog
 
 ![Граф зависимостей Serilog](examples/visualizations/real/serilog_4_2_0.svg)
 
-**Версия корневого пакета: 4.2.0.** Исходник: [Mermaid](examples/visualizations/real/serilog_4_2_0.mmd).
+**Корневой пакет: Serilog 4.2.0.** Исходник: [Mermaid](examples/visualizations/real/serilog_4_2_0.mmd).
 
 ### Polly
 
 ![Граф зависимостей Polly](examples/visualizations/real/polly_8_5_2.svg)
 
-**Версия корневого пакета: 8.5.2.** Исходник: [Mermaid](examples/visualizations/real/polly_8_5_2.mmd).
+**Корневой пакет: Polly 8.5.2.** Исходник: [Mermaid](examples/visualizations/real/polly_8_5_2.mmd).
 
 ### FluentValidation
 
 ![Граф зависимостей FluentValidation](examples/visualizations/real/fluentvalidation_11_11_0.svg)
 
-**Версия корневого пакета: 11.11.0.** Исходник: [Mermaid](examples/visualizations/real/fluentvalidation_11_11_0.mmd).
+**Корневой пакет: FluentValidation 11.11.0.** Исходник: [Mermaid](examples/visualizations/real/fluentvalidation_11_11_0.mmd).
 
 Команды повторного создания примеров (при наличии сетевого доступа к NuGet):
 
 ```sh
 ./run.sh --config config/config.yaml --package Serilog \
+  --version 4.2.0 \
   --output examples/visualizations/real/serilog_4_2_0.svg
 ./run.sh --config config/config.yaml --package Polly \
+  --version 8.5.2 \
   --output examples/visualizations/real/polly_8_5_2.svg
 ./run.sh --config config/config.yaml --package FluentValidation \
+  --version 11.11.0 \
   --output examples/visualizations/real/fluentvalidation_11_11_0.svg
 ```
 
-Перед каждым запуском задайте в `config/config.yaml` версию, указанную под
-соответствующим графом, и `max_depth: 2`. CLI переопределяет имя и путь SVG.
+Команда `--version` задаёт версию корневого пакета без изменения YAML;
+ограничение глубины берётся из `config/config.yaml` (`max_depth: 2`).
 
 ## Сопоставление с NuGet
 

@@ -1,24 +1,16 @@
 flowchart LR
-    N0["Serilog"]
-    N1["System.Diagnostics.DiagnosticSource"]
-    N2["System.Threading.Channels"]
-    N3["System.ValueTuple"]
-    N4["System.Memory"]
-    N5["System.Runtime.CompilerServices.Unsafe"]
-    N6["System.Threading.Tasks.Extensions"]
-    N7["NETStandard.Library"]
-    N0 --> N1
-    N0 --> N2
-    N0 --> N3
-    N0 --> N1
-    N0 --> N2
-    N0 --> N1
-    N0 --> N2
-    N1 --> N4
-    N1 --> N5
-    N1 --> N5
-    N1 --> N4
-    N1 --> N5
-    N2 --> N6
-    N2 --> N6
-    N3 --> N7
+    N0["Serilog<br/>4.2.0"]
+    N1["System.Diagnostics.DiagnosticSource<br/>8.0.1"]
+    N2["System.Threading.Channels<br/>8.0.0"]
+    N3["System.ValueTuple<br/>4.5.0"]
+    N4["System.Memory<br/>4.5.5"]
+    N5["System.Runtime.CompilerServices.Unsafe<br/>6.0.0"]
+    N6["System.Threading.Tasks.Extensions<br/>4.5.4"]
+    N7["NETStandard.Library<br/>1.6.1"]
+    N0 -->|8.0.1| N1
+    N0 -->|8.0.0| N2
+    N0 -->|4.5.0| N3
+    N1 -->|4.5.5| N4
+    N1 -->|6.0.0| N5
+    N2 -->|4.5.4| N6
+    N3 -->|1.6.1| N7

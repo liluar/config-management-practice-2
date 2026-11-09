@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,6 +15,8 @@ from io import BytesIO
 from typing import Any
 
 HTTP_TIMEOUT = 30
+DOWNLOAD_ATTEMPTS = 3
+RETRY_DELAY = 1
 NUPKG_SUFFIX = ".nupkg"
 NUSPEC_SUFFIX = ".nuspec"
 PACKAGE_BASE_TYPE = "PackageBaseAddress/3.0.0"
@@ -25,11 +29,21 @@ VERSION_RANGE = re.compile(
 def download_bytes(url: str) -> bytes:
     """Скачать данные обычным HTTP-клиентом Python."""
     request = urllib.request.Request(url)
-    try:
-        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
-            return response.read()
-    except (OSError, urllib.error.URLError) as error:
-        raise ValueError(f"Не удалось скачать данные: {url}") from error
+    last_error = None
+    for attempt in range(DOWNLOAD_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(
+                request, timeout=HTTP_TIMEOUT
+            ) as response:
+                return response.read()
+        except (OSError, urllib.error.URLError,
+                http.client.IncompleteRead) as error:
+            last_error = error
+            if attempt + 1 < DOWNLOAD_ATTEMPTS:
+                time.sleep(RETRY_DELAY)
+    raise ValueError(
+        f"Не удалось скачать данные: {url} ({last_error})"
+    ) from last_error
 
 
 def resource_types(resource: dict[str, Any]) -> list[str]:
@@ -160,3 +174,15 @@ def get_transitive_dependencies(
     dependencies = get_direct_dependencies(
         package_name, version, repository_url)
     return [(name, select_version(spec)) for name, spec in dependencies]
+
+
+def get_dependency_details(
+    package_name: str, version: str, repository_url: str,
+) -> list[tuple[str, str, str]]:
+    """Вернуть имя, выбранную версию и исходное условие из nuspec."""
+    dependencies = get_direct_dependencies(
+        package_name, version, repository_url)
+    return [
+        (name, select_version(spec), spec)
+        for name, spec in dependencies
+    ]

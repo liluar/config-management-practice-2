@@ -40,6 +40,20 @@ def make_nupkg() -> bytes:
 class NugetTests(unittest.TestCase):
     """Проверить парсинг и мокнутую загрузку NuGet."""
 
+    def test_retries_interrupted_download(self) -> None:
+        """Повторить загрузку после неполного ответа сервера."""
+        responses = [
+            nuget_module.http.client.IncompleteRead(b"partial", 5),
+            io.BytesIO(b"complete"),
+        ]
+        with patch(
+            "nuget.urllib.request.urlopen", side_effect=responses
+        ) as opened, patch("nuget.time.sleep") as sleeper:
+            result = nuget_module.download_bytes(REPOSITORY_URL)
+        self.assertEqual(result, b"complete")
+        self.assertEqual(opened.call_count, 2)
+        sleeper.assert_called_once_with(nuget_module.RETRY_DELAY)
+
     def test_parse_direct_dependencies(self) -> None:
         """Прочитать прямые зависимости из всех групп."""
         self.assertEqual(nuget_module.parse_nuspec(NUSPEC_CONTENT), [
@@ -92,6 +106,16 @@ class NugetTests(unittest.TestCase):
             result = nuget_module.get_transitive_dependencies(
                 "Root", "1.0.0", "feed")
         self.assertEqual(result, [("Child", "2.4.0")])
+
+    def test_dependency_details_keep_original_range(self) -> None:
+        """Хранить выбранную версию отдельно от исходного диапазона."""
+        with patch("nuget.get_direct_dependencies", return_value=[
+            ("Child", "[2.4.0, 3.0.0)")
+        ]):
+            result = nuget_module.get_dependency_details(
+                "Root", "1.0.0", "feed")
+        self.assertEqual(result, [
+            ("Child", "2.4.0", "[2.4.0, 3.0.0)")])
 
     def test_unresolvable_version(self) -> None:
         """Отклонить диапазон без конкретной версии."""

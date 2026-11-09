@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 import yaml
 
-from nuget import get_transitive_dependencies
+from nuget import get_dependency_details
 from visualization import print_ascii_tree, write_visualization
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "config.yaml"
@@ -23,7 +23,7 @@ STRING_KEYS = ("package_name", "repository", "version", "output_file")
 MIN_DEPTH = 0
 TEST_VERSION = "1.0.0"
 CAPITAL_PACKAGE = re.compile(r"^[A-Z]+$")
-DependencyProvider = Callable[[str, str], list[tuple[str, str]]]
+DependencyProvider = Callable[[str, str], list[tuple[str, str, str]]]
 
 
 @dataclass
@@ -33,6 +33,8 @@ class GraphState:
     graph: dict[str, list[str]]
     visited: set[str]
     queue: deque[tuple[str, str, int]]
+    versions: dict[str, str]
+    constraints: dict[tuple[str, str], str]
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -44,6 +46,7 @@ def parse_arguments() -> argparse.Namespace:
         help="показать пакеты, зависящие от PACKAGE",
     )
     parser.add_argument("--package", help="переопределить корневой пакет")
+    parser.add_argument("--version", help="версия корневого пакета")
     parser.add_argument("--output", type=Path, help="путь к SVG-файлу")
     return parser.parse_args()
 
@@ -136,10 +139,11 @@ def read_test_graph(path: Path) -> dict[str, list[str]]:
 
 def test_provider(graph: dict[str, list[str]]) -> DependencyProvider:
     """Создать поставщик прямых зависимостей для тестового графа."""
-    def provide(package: str, version: str) -> list[tuple[str, str]]:
+    def provide(package: str, version: str) -> list[tuple[str, str, str]]:
         """Вернуть смежные узлы локального графа."""
         del version
-        return [(name, TEST_VERSION) for name in graph.get(package, [])]
+        return [(name, TEST_VERSION, TEST_VERSION)
+                for name in graph.get(package, [])]
     return provide
 
 
@@ -148,11 +152,20 @@ def expand_package(
     provider: DependencyProvider, state: GraphState,
 ) -> None:
     """Добавить рёбра узла и поставить новые узлы в FIFO-очередь."""
-    for dependency, required_version in provider(package, version):
+    for dependency, required_version, version_range in provider(
+        package, version):
         if filter_text and filter_text.casefold() in dependency.casefold():
             continue
-        state.graph[package].append(dependency)
+        if dependency not in state.graph[package]:
+            state.graph[package].append(dependency)
         state.graph.setdefault(dependency, [])
+        state.versions.setdefault(dependency, required_version)
+        edge = (package, dependency)
+        existing_range = state.constraints.get(edge)
+        if existing_range is None:
+            state.constraints[edge] = version_range
+        elif version_range not in existing_range.split("; "):
+            state.constraints[edge] = f"{existing_range}; {version_range}"
         if dependency not in state.visited:
             state.visited.add(dependency)
             state.queue.append((dependency, required_version, depth + 1))
@@ -161,12 +174,14 @@ def expand_package(
 def build_dependency_graph(
     root: str, version: str, max_depth: int, filter_text: str,
     provider: DependencyProvider,
+    versions: dict[str, str] | None = None,
+    constraints: dict[tuple[str, str], str] | None = None,
 ) -> dict[str, list[str]]:
     """Построить граф BFS с рекурсивной обработкой очереди."""
     graph = {root: []}
     visited = {root}
     queue = deque([(root, version, 0)])
-    state = GraphState(graph, visited, queue)
+    state = GraphState(graph, visited, queue, {root: version}, {})
 
     def visit_queue() -> None:
         """Рекурсивно обработать очередь в порядке BFS."""
@@ -179,6 +194,10 @@ def build_dependency_graph(
         visit_queue()
 
     visit_queue()
+    if versions is not None:
+        versions.update(state.versions)
+    if constraints is not None:
+        constraints.update(state.constraints)
     return state.graph
 
 
@@ -187,7 +206,7 @@ def configured_provider(
 ) -> DependencyProvider:
     """Выбрать поставщика NuGet или локального тестового графа."""
     if not config["test_mode"]:
-        return lambda package, version: get_transitive_dependencies(
+        return lambda package, version: get_dependency_details(
             package, version, config["repository"])
     graph_path = Path(config["repository"])
     if not graph_path.is_absolute():
@@ -241,40 +260,50 @@ def print_reverse_graph(target: str, graph: dict[str, list[str]]) -> None:
         print(f"{package} <- {dependent}")
 
 
+def write_graph_output(
+    arguments: argparse.Namespace, config: dict[str, Any], package_name: str,
+    graph: dict[str, list[str]], versions: dict[str, str],
+    constraints: dict[tuple[str, str], str],
+) -> int:
+    """Вывести граф и сохранить Mermaid/SVG рядом."""
+    print_graph(package_name, config["version"], graph)
+    if config["ascii_tree"]:
+        print_ascii_tree(package_name, graph)
+    output_path = arguments.output or Path(config["output_file"])
+    if not output_path.is_absolute():
+        output_path = Path(__file__).resolve().parents[1] / output_path
+    try:
+        mermaid_path = write_visualization(
+            graph, output_path, versions, constraints)
+    except (OSError, ValueError) as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
+    print(f"Mermaid source: {mermaid_path}")
+    print(f"SVG saved: {output_path}")
+    return 0
+
+
 def main() -> int:
     """Загрузить настройки, построить и вывести граф."""
     arguments = parse_arguments()
     try:
         config = load_config(arguments.config)
+        if arguments.version:
+            config["version"] = arguments.version
         provider = configured_provider(config, arguments.config)
         package_name = arguments.package or config["package_name"]
+        versions = {}
+        constraints = {}
         graph = build_dependency_graph(
             package_name, config["version"], config["max_depth"],
-            config["filter"], provider)
+            config["filter"], provider, versions, constraints)
     except ValueError as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
     target = arguments.reverse_dependencies
     if target is None:
-        print_graph(package_name, config["version"], graph)
-        if config["ascii_tree"]:
-            print_ascii_tree(package_name, graph)
-        output_path = arguments.output or Path(config["output_file"])
-        if not output_path.is_absolute():
-            output_path = Path(__file__).resolve().parents[1] / output_path
-        try:
-            caption = (
-                f"Версия корневого пакета {package_name}: "
-                f"{config['version']}"
-            )
-            mermaid_path = write_visualization(
-                graph, output_path, caption)
-        except (OSError, ValueError) as error:
-            print(f"Ошибка: {error}", file=sys.stderr)
-            return 1
-        print(f"Mermaid source: {mermaid_path}")
-        print(f"SVG saved: {output_path}")
-        return 0
+        return write_graph_output(
+            arguments, config, package_name, graph, versions, constraints)
     try:
         reverse_graph = build_reverse_dependency_graph(
             graph, target, config["version"], config["max_depth"],

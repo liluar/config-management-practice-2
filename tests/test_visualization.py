@@ -27,6 +27,19 @@ class VisualizationTests(unittest.TestCase):
         self.assertIn("N0 --> N1", source)
         self.assertIn("N3 --> N0", source)
 
+    def test_mermaid_and_svg_show_versions_and_constraints(self) -> None:
+        """Показать версии узлов и диапазоны на рёбрах."""
+        versions = {"A": "1.2.3", "B": "2.0.0"}
+        constraints = {("A", "B"): "[2.0.0, 3.0.0)"}
+        graph = {"A": ["B"], "B": []}
+        source = visualization_module.mermaid_source(
+            graph, versions, constraints)
+        self.assertIn('N0["A<br/>1.2.3"]', source)
+        self.assertIn("N0 -->|[2.0.0, 3.0.0)| N1", source)
+        svg = visualization_module.svg_source(graph, versions, constraints)
+        self.assertIn(">2.0.0</text>", svg)
+        self.assertIn(">[2.0.0, 3.0.0)</text>", svg)
+
     def test_ascii_tree_marks_cycles_and_shared_nodes(self) -> None:
         """Завершить обход цикла и отметить повтор узла."""
         tree = visualization_module.ascii_tree("A", SAMPLE_GRAPH)

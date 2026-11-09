@@ -9,37 +9,52 @@ from pathlib import Path
 
 MERMAID_HEADER = "flowchart LR"
 SVG_MARGIN = 48
-SVG_NODE_HEIGHT = 48
+SVG_NODE_HEIGHT = 64
 SVG_MIN_NODE_WIDTH = 112
 SVG_CHAR_WIDTH = 8
 SVG_HORIZONTAL_PADDING = 24
 SVG_HORIZONTAL_GAP = 96
 SVG_VERTICAL_GAP = 48
 SVG_FONT_SIZE = 14
+SVG_VERSION_FONT_SIZE = 10
+SVG_CONSTRAINT_FONT_SIZE = 9
 SVG_CURVE_OFFSET = 36
 SVG_CYCLE_OFFSET = 24
 SVG_CAPTION_HEIGHT = 38
 
 
 def mermaid_source(
-    graph: dict[str, list[str]], caption: str = ""
+    graph: dict[str, list[str]], versions: dict[str, str] | None = None,
+    constraints: dict[tuple[str, str], str] | None = None,
 ) -> str:
-    """Сформировать текст Mermaid с устойчивыми идентификаторами узлов."""
+    """Сформировать Mermaid с версиями узлов и условиями рёбер."""
     names = list(graph)
     identifiers = {name: f"N{index}" for index, name in enumerate(names)}
     lines = [MERMAID_HEADER]
     for name in names:
-        label = html.escape(name, quote=True)
+        label = _node_label(name, versions)
         lines.append(f'    {identifiers[name]}["{label}"]')
     for package, dependencies in graph.items():
         for dependency in dependencies:
             if dependency not in identifiers:
                 identifiers[dependency] = f"N{len(identifiers)}"
-                label = html.escape(dependency, quote=True)
+                label = _node_label(dependency, versions)
                 lines.append(f'    {identifiers[dependency]}["{label}"]')
-            lines.append(f"    {identifiers[package]} --> "
-                         f"{identifiers[dependency]}")
+            condition = (constraints or {}).get((package, dependency))
+            edge = f"{identifiers[package]} -->"
+            if condition:
+                edge += f"|{html.escape(condition)}|"
+            lines.append(f"    {edge} {identifiers[dependency]}")
     return "\n".join(lines) + "\n"
+
+
+def _node_label(package: str, versions: dict[str, str] | None) -> str:
+    """Format a Mermaid node name and its selected package version."""
+    name = html.escape(package, quote=True)
+    if versions and package in versions:
+        version = html.escape(versions[package], quote=True)
+        return f"{name}<br/>{version}"
+    return name
 
 
 def node_levels(graph: dict[str, list[str]]) -> dict[str, int]:
@@ -101,10 +116,10 @@ def layout_nodes(
     return positions, width, height
 
 
-def edge_svg(
+def edge_geometry(
     source: tuple[int, int, int], target: tuple[int, int, int],
-) -> str:
-    """Сформировать SVG-путь со стрелкой между двумя узлами."""
+) -> tuple[int, int, int, int, int, int, int, int]:
+    """Рассчитать точки кривой для связи двух SVG-узлов."""
     source_x, source_y, source_width = source
     target_x, target_y, target_width = target
     start_y = source_y + SVG_NODE_HEIGHT // 2
@@ -124,19 +139,70 @@ def edge_svg(
         second_y = lane_y
     first_control = start_x + direction * SVG_CURVE_OFFSET
     second_control = end_x - direction * SVG_CURVE_OFFSET
-    return (
+    return (start_x, start_y, end_x, end_y, first_control, first_y,
+            second_control, second_y)
+
+
+def edge_svg(
+    source: tuple[int, int, int], target: tuple[int, int, int],
+    condition: str = "",
+) -> str:
+    """Сформировать SVG-путь со стрелкой и условием зависимости."""
+    (start_x, start_y, end_x, end_y, first_control, first_y,
+     second_control, second_y) = edge_geometry(source, target)
+    path = (
         f'<path d="M {start_x} {start_y} C {first_control} {first_y}, '
         f'{second_control} {second_y}, {end_x} {end_y}" '
         'fill="none" stroke="#64748b" stroke-width="2" '
         'marker-end="url(#arrow)" />'
     )
+    if not condition:
+        return path
+    label_x = (start_x + end_x) // 2
+    label_y = (first_y + second_y) // 2 - 5
+    label = html.escape(condition)
+    return path + (
+        f'<text x="{label_x}" y="{label_y}" text-anchor="middle" '
+        f'font-family="Arial, sans-serif" '
+        f'font-size="{SVG_CONSTRAINT_FONT_SIZE}" fill="#334155" '
+        f'paint-order="stroke" stroke="#ffffff" stroke-width="4">'
+        f'{label}</text>'
+    )
 
 
-def svg_source(graph: dict[str, list[str]], caption: str = "") -> str:
-    """Сформировать автономное SVG-изображение направленного графа."""
-    positions, width, chart_height = layout_nodes(graph)
-    caption_height = SVG_CAPTION_HEIGHT if caption else 0
-    height = chart_height + caption_height
+def node_svg(
+    package: str, position: tuple[int, int, int],
+    versions: dict[str, str] | None,
+) -> list[str]:
+    """Сформировать SVG-узел с именем и выбранной версией."""
+    x, y, width = position
+    label = html.escape(package)
+    node = [
+        f'<rect x="{x}" y="{y}" width="{width}" '
+        f'height="{SVG_NODE_HEIGHT}" rx="9" fill="#f1f5f9" '
+        'stroke="#334155" stroke-width="1.5" />',
+        f'<text x="{x + width // 2}" y="{y + 25}" '
+        'text-anchor="middle" '
+        f'font-family="Arial, sans-serif" font-size="{SVG_FONT_SIZE}" '
+        f'fill="#0f172a">{label}</text>',
+    ]
+    if versions and package in versions:
+        version = html.escape(versions[package])
+        node.append(
+            f'<text x="{x + width // 2}" y="{y + 46}" '
+            'text-anchor="middle" font-family="Arial, sans-serif" '
+            f'font-size="{SVG_VERSION_FONT_SIZE}" fill="#475569">'
+            f'{version}</text>'
+        )
+    return node
+
+
+def svg_source(
+    graph: dict[str, list[str]], versions: dict[str, str] | None = None,
+    constraints: dict[tuple[str, str], str] | None = None,
+) -> str:
+    """Сформировать SVG с выбранными версиями и условиями NuGet."""
+    positions, width, height = layout_nodes(graph)
     lines = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
         f'height="{height}" viewBox="0 0 {width} {height}">',
@@ -148,31 +214,19 @@ def svg_source(graph: dict[str, list[str]], caption: str = "") -> str:
     ]
     for package, dependencies in graph.items():
         for dependency in dependencies:
-            lines.append(edge_svg(positions[package], positions[dependency]))
-    for package, (x, y, width) in positions.items():
-        label = html.escape(package)
-        text_y = y + SVG_NODE_HEIGHT // 2 + SVG_FONT_SIZE // 2
-        lines.extend([
-            f'<rect x="{x}" y="{y}" width="{width}" '
-            f'height="{SVG_NODE_HEIGHT}" rx="9" fill="#f1f5f9" '
-            'stroke="#334155" stroke-width="1.5" />',
-            f'<text x="{x + width // 2}" y="{text_y}" text-anchor="middle" '
-            f'font-family="Arial, sans-serif" font-size="{SVG_FONT_SIZE}" '
-            f'fill="#0f172a">{label}</text>',
-        ])
-    if caption:
-        caption_y = chart_height + caption_height // 2 + SVG_FONT_SIZE // 2
-        lines.append(
-            f'<text x="{width // 2}" y="{caption_y}" text-anchor="middle" '
-            f'font-family="Arial, sans-serif" font-size="{SVG_FONT_SIZE}" '
-            f'fill="#334155">{html.escape(caption)}</text>'
-        )
+            condition = (constraints or {}).get((package, dependency), "")
+            lines.append(edge_svg(
+                positions[package], positions[dependency], condition))
+    for package, position in positions.items():
+        lines.extend(node_svg(package, position, versions))
     lines.append('</svg>')
     return "\n".join(lines) + "\n"
 
 
 def write_visualization(
-    graph: dict[str, list[str]], output_path: Path, caption: str = "",
+    graph: dict[str, list[str]], output_path: Path,
+    versions: dict[str, str] | None = None,
+    constraints: dict[tuple[str, str], str] | None = None,
 ) -> Path:
     """Сохранить SVG и Mermaid-файл рядом; вернуть путь к Mermaid."""
     if output_path.suffix.lower() != ".svg":
@@ -180,8 +234,9 @@ def write_visualization(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mermaid_path = output_path.with_suffix(".mmd")
     mermaid_path.write_text(
-        mermaid_source(graph, caption), encoding="utf-8")
-    output_path.write_text(svg_source(graph, caption), encoding="utf-8")
+        mermaid_source(graph, versions, constraints), encoding="utf-8")
+    output_path.write_text(
+        svg_source(graph, versions, constraints), encoding="utf-8")
     return mermaid_path
 
 

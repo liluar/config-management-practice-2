@@ -1,40 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="566" viewBox="0 0 840 566">
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="608" viewBox="0 0 840 608">
 <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
 <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
 </marker></defs>
 <rect width="100%" height="100%" fill="#ffffff" />
-<path d="M 160 72 C 196 72, 220 72, 256 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 160 72 C 196 72, 220 72, 256 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 160 72 C 196 72, 220 72, 256 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 160 72 C 196 72, 220 72, 256 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 460 72, 496 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 472 168, 508 168" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 264, 480 264" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 360, 480 360" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 508 456, 544 456" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 460 72, 496 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 472 168, 508 168" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 264, 480 264" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 360, 480 360" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 508 456, 544 456" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 472 168, 508 168" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 460 72, 496 72" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 472 168, 508 168" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 264, 480 264" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<path d="M 384 72 C 420 72, 444 360, 480 360" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" />
-<rect x="48" y="48" width="112" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="104" y="79" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Polly</text>
-<rect x="256" y="48" width="128" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="320" y="79" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Polly.Core</text>
-<rect x="496" y="48" width="280" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="636" y="79" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Microsoft.Bcl.AsyncInterfaces</text>
-<rect x="508" y="144" width="256" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="636" y="175" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Microsoft.Bcl.TimeProvider</text>
-<rect x="480" y="240" width="312" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="636" y="271" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.ComponentModel.Annotations</text>
-<rect x="480" y="336" width="312" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="636" y="367" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.Threading.Tasks.Extensions</text>
-<rect x="544" y="432" width="184" height="48" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
-<text x="636" y="463" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.ValueTuple</text>
-<text x="92" y="554" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#334155">Версия корневого пакета Polly: 8.5.2</text>
+<path d="M 160 80 C 196 80, 220 80, 256 80" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="208" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">8.5.2</text>
+<path d="M 384 80 C 420 80, 460 80, 496 80" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="440" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">6.0.0</text>
+<path d="M 384 80 C 420 80, 472 192, 508 192" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="446" y="131" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">8.0.0</text>
+<path d="M 384 80 C 420 80, 444 304, 480 304" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="432" y="187" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">4.5.0</text>
+<path d="M 384 80 C 420 80, 444 416, 480 416" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="432" y="243" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">4.5.4</text>
+<path d="M 384 80 C 420 80, 508 528, 544 528" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)" /><text x="464" y="299" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#334155" paint-order="stroke" stroke="#ffffff" stroke-width="4">4.5.0</text>
+<rect x="48" y="48" width="112" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="104" y="73" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Polly</text>
+<text x="104" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">8.5.2</text>
+<rect x="256" y="48" width="128" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="320" y="73" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Polly.Core</text>
+<text x="320" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">8.5.2</text>
+<rect x="496" y="48" width="280" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="636" y="73" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Microsoft.Bcl.AsyncInterfaces</text>
+<text x="636" y="94" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">6.0.0</text>
+<rect x="508" y="160" width="256" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="636" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Microsoft.Bcl.TimeProvider</text>
+<text x="636" y="206" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">8.0.0</text>
+<rect x="480" y="272" width="312" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="636" y="297" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.ComponentModel.Annotations</text>
+<text x="636" y="318" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">4.5.0</text>
+<rect x="480" y="384" width="312" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="636" y="409" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.Threading.Tasks.Extensions</text>
+<text x="636" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">4.5.4</text>
+<rect x="544" y="496" width="184" height="64" rx="9" fill="#f1f5f9" stroke="#334155" stroke-width="1.5" />
+<text x="636" y="521" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">System.ValueTuple</text>
+<text x="636" y="542" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#475569">4.5.0</text>
 </svg>

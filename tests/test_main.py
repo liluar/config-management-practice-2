@@ -95,6 +95,17 @@ class GraphTests(unittest.TestCase):
             "A": ["B", "C"], "B": [], "C": []})
         self.assertEqual(self.build(depth=0), {"A": []})
 
+    def test_collects_versions_and_edge_ranges(self) -> None:
+        """Собрать версии узлов и требования зависимостей."""
+        versions = {}
+        constraints = {}
+        main_module.build_dependency_graph(
+            "A", "2.0.0", 1, "", self.make_provider(),
+            versions, constraints)
+        self.assertEqual(versions["A"], "2.0.0")
+        self.assertEqual(versions["B"], main_module.TEST_VERSION)
+        self.assertEqual(constraints[("A", "B")], "1.0.0")
+
     def test_substring_filter(self) -> None:
         """Исключить пакеты с совпадающей подстрокой без регистра."""
         self.assertEqual(self.build(filter_text="c"), {

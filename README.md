@@ -124,10 +124,10 @@ NuGet CLI/SDK, `dotnet`, GitHub и готовые средства разреш�
 python3 -m unittest discover -s tests -v
 ```
 
-Сетевой режим указан в `config/config.yaml`; тестовый граф и пример настроек
-находятся в `config/`. Тесты используют локальные данные и моки, сеть им не
-нужна. Каждый обычный запуск выводит граф, сохраняет `.mmd` и `.svg`, а при
-`ascii_tree: true` также печатает ASCII-дерево.
+Сетевой режим указан в `config/config.yaml`; `config/test_mode.yaml` и JSON-граф
+нужны только для локальной проверки. Тесты используют локальные данные и моки,
+сеть им не нужна. Итоговая демонстрация этапа 5 ниже использует реальные NuGet
+пакеты, а не тестовый граф.
 
 ## Этап 5: реальные NuGet-примеры
 
@@ -137,41 +137,53 @@ python3 -m unittest discover -s tests -v
 объединяют зависимости, объявленные в группах `.nuspec`. Каждый SVG имеет
 одноимённый `.mmd`:
 
-| NuGet-пакет | Фиксированная версия | Пример |
-| --- | --- | --- |
-| `Newtonsoft.Json` | `13.0.3` | [Mermaid](examples/visualizations/real/newtonsoft_json_13_0_3.mmd), [SVG](examples/visualizations/real/newtonsoft_json_13_0_3.svg) |
-| `Polly` | `8.5.2` | [Mermaid](examples/visualizations/real/polly_8_5_2.mmd), [SVG](examples/visualizations/real/polly_8_5_2.svg) |
-| `FluentValidation` | `11.11.0` | [Mermaid](examples/visualizations/real/fluentvalidation_11_11_0.mmd), [SVG](examples/visualizations/real/fluentvalidation_11_11_0.svg) |
+### Serilog
+
+![Граф зависимостей Serilog](examples/visualizations/real/serilog_4_2_0.svg)
+
+**Версия корневого пакета: 4.2.0.** Исходник: [Mermaid](examples/visualizations/real/serilog_4_2_0.mmd).
+
+### Polly
+
+![Граф зависимостей Polly](examples/visualizations/real/polly_8_5_2.svg)
+
+**Версия корневого пакета: 8.5.2.** Исходник: [Mermaid](examples/visualizations/real/polly_8_5_2.mmd).
+
+### FluentValidation
+
+![Граф зависимостей FluentValidation](examples/visualizations/real/fluentvalidation_11_11_0.svg)
+
+**Версия корневого пакета: 11.11.0.** Исходник: [Mermaid](examples/visualizations/real/fluentvalidation_11_11_0.mmd).
 
 Команды повторного создания примеров (при наличии сетевого доступа к NuGet):
 
 ```sh
-./run.sh --config config/config.yaml --package Newtonsoft.Json \
-  --output examples/visualizations/real/newtonsoft_json_13_0_3.svg
+./run.sh --config config/config.yaml --package Serilog \
+  --output examples/visualizations/real/serilog_4_2_0.svg
 ./run.sh --config config/config.yaml --package Polly \
   --output examples/visualizations/real/polly_8_5_2.svg
 ./run.sh --config config/config.yaml --package FluentValidation \
   --output examples/visualizations/real/fluentvalidation_11_11_0.svg
 ```
 
-В `config/config.yaml` перед каждым запуском выставьте `version` в значение
-из таблицы и `max_depth: 2`. Фиксированная версия корня задаётся конфигурацией;
-CLI переопределяет имя и выходной путь.
+Перед каждым запуском задайте в `config/config.yaml` версию, указанную под
+соответствующим графом, и `max_depth: 2`. CLI переопределяет имя и путь SVG.
 
 ## Сопоставление с NuGet
 
 Прямые метаданные также сверены с официальными страницами NuGet:
-[Newtonsoft.Json 13.0.3](https://www.nuget.org/packages/Newtonsoft.Json/13.0.3),
+[Serilog 4.2.0](https://www.nuget.org/packages/Serilog/4.2.0),
 [Polly 8.5.2](https://www.nuget.org/packages/Polly/8.5.2) и
 [FluentValidation 11.11.0](https://www.nuget.org/packages/FluentValidation/11.11.0).
-ID пакетов совпадают с данными загруженных `.nuspec`. Например, страница Polly
-показывает `Polly.Core (>= 8.5.2)` для каждой target framework-группы, а для
-FluentValidation указывает `System.Threading.Tasks.Extensions (>= 4.5.4)` в
-группе .NET Standard 2.0; у остальных включённых групп зависимостей нет.
-Newtonsoft.Json не имеет зависимостей для .NET Framework 2.0–4.5 и .NET
-Standard 2.0, но объявляет их в группах .NET Standard 1.0/1.3. Поэтому пример
-показывает объединение метаданных разных framework-групп, а не одну группу,
-выбранную restore для проекта.
+ID пакетов совпадают с данными загруженных `.nuspec`. Страница Serilog
+показывает прямые зависимости `System.Diagnostics.DiagnosticSource` и
+`System.Threading.Channels` для нескольких групп, а также `System.ValueTuple`
+для .NET Framework 4.6.2; группы .NET 6, 8 и 9 dependencies не содержат.
+Страница Polly показывает `Polly.Core (>= 8.5.2)` для каждой target framework-группы,
+а FluentValidation указывает `System.Threading.Tasks.Extensions (>= 4.5.4)` в
+группе .NET Standard 2.0 и отсутствие зависимостей в остальных включённых
+группах. Это подтверждает, что пример показывает объединение метаданных разных
+framework-групп, а не одну группу, выбранную restore для проекта.
 
 NuGet Package Manager UI показывает пакеты проекта и их разрешённые версии,
 а restore выбирает совместимые зависимости с учётом target framework и
